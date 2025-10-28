@@ -1,80 +1,55 @@
 #include <stdio.h>
-#include <ctype.h>
 #include <string.h>
+#include <ctype.h>
 
 #define MAX 10
 
-char prod[MAX][MAX];
+char prod[MAX][20];
 int n;
 
-char first[MAX][MAX];
-char follow[MAX][MAX];
-
-void findFirst(char *res, char c);
-void findFollow(char *res, char c);
-void add(char *res, char c);
-
-int main() {
-    int i;
-    char c, res[MAX];
-
-    printf("Enter number of productions: ");
-    scanf("%d", &n);
-    printf("Enter productions (like E->E+T):\n");
-    for (i = 0; i < n; i++)
-        scanf("%s", prod[i]);
-
-    printf("\n----- FIRST sets -----\n");
-    for (i = 0; i < n; i++) {
-        c = prod[i][0];
-        strcpy(res, "");
-        findFirst(res, c);
-        printf("FIRST(%c) = { %s }\n", c, res);
-        strcpy(first[i], res);
-    }
-
-    printf("\n----- FOLLOW sets -----\n");
-    for (i = 0; i < n; i++) {
-        c = prod[i][0];
-        strcpy(res, "");
-        findFollow(res, c);
-        printf("FOLLOW(%c) = { %s }\n", c, res);
-        strcpy(follow[i], res);
-    }
-
-    return 0;
-}
-
+// Add a symbol to a result string (avoid duplicates)
 void add(char *res, char c) {
-    if (strchr(res, c) == 0)
-        strncat(res, &c, 1);
+    if (!strchr(res, c)) {
+        int len = strlen(res);
+        res[len] = c;
+        res[len + 1] = '\0';
+    }
 }
 
-void findFirst(char *res, char c) {
-    if (!isupper(c)) {  // terminal
+// Recursive function to find FIRST
+void findFirst(char c, char *res) {
+    // If terminal, FIRST = itself
+    if (!isupper(c)) {
         add(res, c);
         return;
     }
 
+    // For each production with c on LHS
     for (int i = 0; i < n; i++) {
         if (prod[i][0] == c) {
-            char rhs = prod[i][3];
-            if (rhs == '#')
-                add(res, '#');
-            else if (!isupper(rhs))
-                add(res, rhs);
-            else
-                findFirst(res, rhs);
+            char next = prod[i][2];
+
+            // Skip invalid or empty production
+            if (next == '\0')
+                continue;
+
+            if (!isupper(next))
+                add(res, next);
+            else if (next != c) // avoid self-recursion like E -> E+T
+                findFirst(next, res);
         }
     }
 }
 
-void findFollow(char *res, char c) {
+// Recursive function to find FOLLOW
+void findFollow(char c, char *res) {
+    // Add $ to start symbol
     if (prod[0][0] == c)
-        add(res, '$');  // start symbol
+        add(res, '$');
 
+    // Check all productions for symbol c
     for (int i = 0; i < n; i++) {
-        for (int j = 3; j < strlen(prod[i]); j++) {
+        for (int j = 2; j < strlen(prod[i]); j++) {
             if (prod[i][j] == c) {
                 if (prod[i][j + 1] != '\0') {
                     char next = prod[i][j + 1];
@@ -82,17 +57,45 @@ void findFollow(char *res, char c) {
                         add(res, next);
                     else {
                         char temp[MAX] = "";
-                        findFirst(temp, next);
-                        for (int k = 0; k < strlen(temp); k++) {
-                            if (temp[k] != '#')
-                                add(res, temp[k]);
-                            else if (prod[i][0] != c)
-                                findFollow(res, prod[i][0]);
-                        }
+                        findFirst(next, temp);
+                        for (int k = 0; temp[k] != '\0'; k++)
+                            add(res, temp[k]);
                     }
                 } else if (prod[i][0] != c)
-                    findFollow(res, prod[i][0]);
+                    findFollow(prod[i][0], res);
             }
         }
     }
+}
+
+int main() {
+    printf("Enter number of productions: ");
+    scanf("%d", &n);
+    getchar(); // remove newline left by scanf
+
+    printf("Enter productions (like E=E+T):\n");
+    for (int i = 0; i < n; i++) {
+        fgets(prod[i], sizeof(prod[i]), stdin);
+        prod[i][strcspn(prod[i], "\n")] = 0; // remove newline
+    }
+
+    for (int i = 0; i < n; i++) {
+        char nt = prod[i][0];
+        char first[MAX] = "", follow[MAX] = "";
+
+        findFirst(nt, first);
+        findFollow(nt, follow);
+
+        printf("\nFIRST(%c) = { ", nt);
+        for (int j = 0; j < strlen(first); j++)
+            printf("%c ", first[j]);
+        printf("}");
+
+        printf("\nFOLLOW(%c) = { ", nt);
+        for (int j = 0; j < strlen(follow); j++)
+            printf("%c ", follow[j]);
+        printf("}\n");
+    }
+
+    return 0;
 }
